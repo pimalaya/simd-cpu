@@ -1,0 +1,21 @@
+[package]
+name = "simd-cpu"
+description = "SIMD features of the running CPU as a token for SIMD codecs, no_std and dependency-free"
+version = "0.0.1"
+authors = ["Clément DOUIN (soywod) <pimalaya.org@posteo.net>"]
+rust-version = "1.85"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+categories = ["hardware-support", "no-std", "no-std::no-alloc"]
+keywords = ["simd", "cpu", "target-feature", "detection", "no-std"]
+homepage = "https://pimalaya.org"
+documentation = "https://docs.rs/simd-cpu/latest/simd_cpu"
+repository = "https://github.com/pimalaya/simd-cpu"
+exclude = ["/cairn"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+std = []
