@@ -11,3 +11,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added `SimdCpu`, the SIMD features of the running CPU as a token: `NONE`, `BASELINE` from the build target, `detect` behind the `std` feature, the unsafe `with` and the safe `without`.
 
 - Added `SimdFeature`, the features the Pimalaya codecs run: SSSE3, AVX2, AVX-512 VBMI and VBMI2, BMI1, BMI2, LZCNT and POPCNT on x86, NEON on aarch64.
+
+- Added the process-wide token: `SimdCpu::install_detected` behind `std` and the unsafe `SimdCpu::install`, set once by the application, and `SimdCpu::installed` and `SimdCpu::current` for codecs to read it, `current` falling back to `BASELINE`.

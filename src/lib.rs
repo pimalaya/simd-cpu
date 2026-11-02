@@ -9,10 +9,20 @@
 //! one the caller vouches for. [`SimdCpu::without`] removes one, which is
 //! always sound, to run a narrower backend.
 //!
-//! An application gets one token at start and hands it to every codec, each
-//! picking its backend from it once. A codec turns the features into its own
-//! backend, so a new codec needing a new feature only adds a variant to
-//! [`SimdFeature`].
+//! An application installs one token at start, usually through
+//! `SimdCpu::install_detected`, first thing in `main`, and every codec built
+//! afterwards reads it with [`SimdCpu::current`], picking its backend from
+//! it once; a codec can also take an explicit token instead. An application
+//! that installs nothing gets [`SimdCpu::BASELINE`]: safe, and as fast as the
+//! build target allows. Libraries never install: the token is the
+//! application's, set once, as a rustls crypto provider is.
+//!
+//! The installed token lives in a static of this crate, so two copies of the
+//! crate in one build, from two versions, hold two tokens, and an install
+//! reaches only its own.
+//!
+//! A codec turns the features into its own backend, so a new codec needing a
+//! new feature only adds a variant to [`SimdFeature`].
 //!
 //! ```
 //! use simd_cpu::{SimdCpu, SimdFeature};
@@ -20,6 +30,10 @@
 //! let cpu = SimdCpu::BASELINE.without(SimdFeature::Avx2);
 //! assert!(!cpu.has(SimdFeature::Avx2));
 //! assert!(!SimdCpu::NONE.has(SimdFeature::Neon));
+//!
+//! // NOTE: an application that installed nothing reads the baseline.
+//! let cpu = SimdCpu::installed().unwrap_or(SimdCpu::BASELINE);
+//! assert_eq!(SimdCpu::current(), cpu);
 //! ```
 
 #![no_std]
@@ -27,6 +41,18 @@
 
 #[cfg(any(feature = "std", test))]
 extern crate std;
+
+#[cfg(target_has_atomic = "32")]
+use core::sync::atomic::{AtomicU32, Ordering};
+
+/// The installed token's features, with [`MARK`] once a token is installed,
+/// zero before.
+#[cfg(target_has_atomic = "32")]
+static INSTALLED: AtomicU32 = AtomicU32::new(0);
+
+/// The bit of [`INSTALLED`] telling an installed token from none, past every
+/// feature bit, so [`SimdFeature`] holds at most 31 variants.
+const MARK: u32 = 1 << 31;
 
 /// The SIMD features of the running CPU, by construction ones it supports.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -61,6 +87,73 @@ impl SimdCpu {
     #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     pub fn detect() -> Self {
         detected()
+    }
+
+    /// Installs this token as the process's, once: a second install changes
+    /// nothing and returns the token already installed. Only the application
+    /// installs, before building any codec; a codec built earlier keeps the
+    /// token it read.
+    ///
+    /// # Safety
+    ///
+    /// The running CPU must support every feature of the token: every codec
+    /// reading [`current`](Self::current) runs their instructions on the
+    /// strength of the token alone.
+    #[cfg(target_has_atomic = "32")]
+    #[cfg_attr(docsrs, doc(cfg(target_has_atomic = "32")))]
+    pub unsafe fn install(self) -> Result<(), Self> {
+        // NOTE: the token publishes no other memory, so relaxed ordering
+        // gives every reader either none or the whole token.
+        INSTALLED
+            .compare_exchange(
+                0,
+                self.features | MARK,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            )
+            .map(|_| ())
+            .map_err(|word| Self {
+                features: word & !MARK,
+            })
+    }
+
+    /// Detects the running CPU and installs the result as the process's
+    /// token, returning it, or returns the token already installed. The one
+    /// call an application makes, first thing in `main`.
+    ///
+    /// ```
+    /// use simd_cpu::SimdCpu;
+    ///
+    /// let cpu = SimdCpu::install_detected().unwrap_or_else(|installed| installed);
+    /// assert_eq!(SimdCpu::current(), cpu);
+    /// ```
+    #[cfg(all(feature = "std", target_has_atomic = "32"))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    pub fn install_detected() -> Result<Self, Self> {
+        let cpu = detected();
+
+        // SAFETY: detection holds only features the running CPU supports.
+        unsafe { cpu.install() }.map(|()| cpu)
+    }
+
+    /// The token the application installed, or none.
+    #[inline]
+    pub fn installed() -> Option<Self> {
+        let word = installed_word();
+
+        match word & MARK {
+            0 => None,
+            _ => Some(Self {
+                features: word & !MARK,
+            }),
+        }
+    }
+
+    /// The token the application installed, or [`BASELINE`](Self::BASELINE)
+    /// when it installed none: what a codec runs unless given a token.
+    #[inline]
+    pub fn current() -> Self {
+        Self::installed().unwrap_or(Self::BASELINE)
     }
 
     /// Whether the token holds `feature`.
@@ -144,6 +237,20 @@ impl SimdFeature {
     }
 }
 
+#[cfg(target_has_atomic = "32")]
+#[inline]
+fn installed_word() -> u32 {
+    INSTALLED.load(Ordering::Relaxed)
+}
+
+/// No install without 32-bit atomics, which only targets with no SIMD
+/// feature to install lack.
+#[cfg(not(target_has_atomic = "32"))]
+#[inline]
+fn installed_word() -> u32 {
+    0
+}
+
 #[cfg(all(
     any(feature = "std", test),
     any(target_arch = "x86", target_arch = "x86_64")
@@ -203,5 +310,24 @@ mod tests {
                 assert!(cpu.has(feature), "{feature:?}");
             }
         }
+    }
+
+    /// The whole install lifecycle in one test, the token being the process's.
+    #[test]
+    fn a_token_installs_once() {
+        assert_eq!(SimdCpu::installed(), None);
+        assert_eq!(SimdCpu::current(), SimdCpu::BASELINE);
+
+        let cpu = detected().without(SimdFeature::Avx2);
+
+        // SAFETY: detection holds only features the running CPU supports, and
+        // removing one keeps that.
+        assert_eq!(unsafe { cpu.install() }, Ok(()));
+        assert_eq!(SimdCpu::installed(), Some(cpu));
+        assert_eq!(SimdCpu::current(), cpu);
+
+        // SAFETY: NONE holds no feature.
+        assert_eq!(unsafe { SimdCpu::NONE.install() }, Err(cpu));
+        assert_eq!(SimdCpu::current(), cpu);
     }
 }
