@@ -13,10 +13,10 @@ SIMD features of the running CPU as a token for SIMD codecs, no_std and dependen
 
 ## Features
 
-- **One token for every codec**: the application installs the detected token once, first thing in `main`, and base64-codec, quoted-printable-codec and any later SIMD codec read it, with nothing passed down the layers between; without an install they run the build target's baseline, safely. A codec can still take an explicit token.
-- **Sound by construction**: a token names only features the running CPU has; adding one is unsafe, removing one to run a narrower backend is safe.
-- **Features, not backends**: each codec picks its own backend from the features, so a new codec only adds the features it needs.
-- **Portable**: no_std, dependency-free and allocation-free; detection sits behind the `std` feature, and without it the token holds what the build target guarantees.
+- **One token for every codec**: the application installs it once in `main`, every SIMD codec reads it.
+- **Sound by construction**: a token names only features the running CPU has.
+- **Features, not backends**: each codec picks its own backend from the features.
+- **Portable**: no_std, no dependency, no allocation; detection behind the `std` feature.
 
 > [!TIP]
 > simd-cpu uses [cargo features](https://doc.rust-lang.org/cargo/reference/features.html) to gate optional support. The default feature set is declared in [Cargo.toml](./Cargo.toml) or on [docs.rs](https://docs.rs/crate/simd-cpu/latest/features).

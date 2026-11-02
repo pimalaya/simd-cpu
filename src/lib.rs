@@ -1,28 +1,23 @@
 //! # simd-cpu
 //!
-//! The SIMD features of the running CPU as one token, which SIMD codecs take
-//! to pick their backend, `no_std`, with no dependency and no I/O.
+//! The running CPU's SIMD features as one token, which SIMD codecs take to
+//! pick their backend. `no_std`, no dependency, no I/O.
 //!
-//! A [`SimdCpu`] names only features the running CPU has: [`SimdCpu::BASELINE`]
-//! holds the ones the build target guarantees, `SimdCpu::detect`, behind the
-//! `std` feature, asks the running CPU, and the unsafe [`SimdCpu::with`] adds
-//! one the caller vouches for. [`SimdCpu::without`] removes one, which is
-//! always sound, to run a narrower backend.
+//! A [`SimdCpu`] names only features the CPU has. [`SimdCpu::BASELINE`] holds
+//! the build target's, `SimdCpu::detect` (feature `std`) asks the CPU, and
+//! the unsafe [`SimdCpu::with`] adds one the caller vouches for.
+//! [`SimdCpu::without`] removes one, always soundly.
 //!
-//! An application installs one token at start, usually through
-//! `SimdCpu::install_detected`, first thing in `main`, and every codec built
-//! afterwards reads it with [`SimdCpu::current`], picking its backend from
-//! it once; a codec can also take an explicit token instead. An application
-//! that installs nothing gets [`SimdCpu::BASELINE`]: safe, and as fast as the
-//! build target allows. Libraries never install: the token is the
-//! application's, set once, as a rustls crypto provider is.
+//! The application installs one token, usually with
+//! `SimdCpu::install_detected` first thing in `main`. Codecs read it with
+//! [`SimdCpu::current`], which falls back on [`SimdCpu::BASELINE`], or take
+//! an explicit token. Libraries never install.
 //!
-//! The installed token lives in a static of this crate, so two copies of the
-//! crate in one build, from two versions, hold two tokens, and an install
-//! reaches only its own.
+//! The token lives in a static of this crate: two crate versions in one build
+//! hold two tokens.
 //!
-//! A codec turns the features into its own backend, so a new codec needing a
-//! new feature only adds a variant to [`SimdFeature`].
+//! Codecs map features to their own backends, so a new feature is only a new
+//! [`SimdFeature`] variant.
 //!
 //! ```
 //! use simd_cpu::{SimdCpu, SimdFeature};
@@ -31,7 +26,7 @@
 //! assert!(!cpu.has(SimdFeature::Avx2));
 //! assert!(!SimdCpu::NONE.has(SimdFeature::Neon));
 //!
-//! // NOTE: an application that installed nothing reads the baseline.
+//! // NOTE: with nothing installed, the baseline.
 //! let cpu = SimdCpu::installed().unwrap_or(SimdCpu::BASELINE);
 //! assert_eq!(SimdCpu::current(), cpu);
 //! ```
@@ -45,13 +40,12 @@ extern crate std;
 #[cfg(target_has_atomic = "32")]
 use core::sync::atomic::{AtomicU32, Ordering};
 
-/// The installed token's features, with [`MARK`] once a token is installed,
-/// zero before.
+/// The installed features with [`MARK`] set, or zero before any install.
 #[cfg(target_has_atomic = "32")]
 static INSTALLED: AtomicU32 = AtomicU32::new(0);
 
-/// The bit of [`INSTALLED`] telling an installed token from none, past every
-/// feature bit, so [`SimdFeature`] holds at most 31 variants.
+/// The bit of [`INSTALLED`] marking an install, past every feature bit, so
+/// [`SimdFeature`] has 31 variants at most.
 const MARK: u32 = 1 << 31;
 
 /// The SIMD features of the running CPU, by construction ones it supports.
@@ -81,29 +75,26 @@ impl SimdCpu {
         (SimdFeature::Neon, cfg!(target_feature = "neon")),
     ]);
 
-    /// The features the running CPU supports, detected at run time, the
-    /// build target's included.
+    /// The features the running CPU supports, detected at run time.
     #[cfg(feature = "std")]
     #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
     pub fn detect() -> Self {
         detected()
     }
 
-    /// Installs this token as the process's, once: a second install changes
-    /// nothing and returns the token already installed. Only the application
-    /// installs, before building any codec; a codec built earlier keeps the
-    /// token it read.
+    /// Installs this token as the process's, once.
+    ///
+    /// A second install changes nothing and returns the installed token.
+    /// Install before building codecs: a codec keeps the token it read.
     ///
     /// # Safety
     ///
-    /// The running CPU must support every feature of the token: every codec
-    /// reading [`current`](Self::current) runs their instructions on the
-    /// strength of the token alone.
+    /// The running CPU must support every feature of the token: codecs
+    /// reading [`current`](Self::current) trust it alone.
     #[cfg(target_has_atomic = "32")]
     #[cfg_attr(docsrs, doc(cfg(target_has_atomic = "32")))]
     pub unsafe fn install(self) -> Result<(), Self> {
-        // NOTE: the token publishes no other memory, so relaxed ordering
-        // gives every reader either none or the whole token.
+        // NOTE: relaxed is enough, as the token publishes no other memory.
         INSTALLED
             .compare_exchange(
                 0,
@@ -117,9 +108,8 @@ impl SimdCpu {
             })
     }
 
-    /// Detects the running CPU and installs the result as the process's
-    /// token, returning it, or returns the token already installed. The one
-    /// call an application makes, first thing in `main`.
+    /// Detects and installs the running CPU's token, returning it, or returns
+    /// the installed one. Call it first thing in `main`.
     ///
     /// ```
     /// use simd_cpu::SimdCpu;
@@ -149,8 +139,8 @@ impl SimdCpu {
         }
     }
 
-    /// The token the application installed, or [`BASELINE`](Self::BASELINE)
-    /// when it installed none: what a codec runs unless given a token.
+    /// The installed token, or [`BASELINE`](Self::BASELINE): what a codec
+    /// runs unless given a token.
     #[inline]
     pub fn current() -> Self {
         Self::installed().unwrap_or(Self::BASELINE)
@@ -165,8 +155,7 @@ impl SimdCpu {
     ///
     /// # Safety
     ///
-    /// The running CPU must support `feature`: a codec runs its instructions
-    /// on the strength of the token alone.
+    /// The running CPU must support `feature`: codecs trust the token alone.
     pub const unsafe fn with(self, feature: SimdFeature) -> Self {
         Self {
             features: self.features | feature.bit(),
@@ -206,8 +195,8 @@ impl Default for SimdCpu {
 
 /// A CPU feature some SIMD codec runs, named after its Rust target feature.
 ///
-/// A feature implies the ones its target feature implies: a CPU with
-/// AVX-512 VBMI has AVX2 and SSSE3, whether or not the token holds them.
+/// A feature implies what its target feature implies: a CPU with AVX-512
+/// VBMI has AVX2 and SSSE3, whether the token holds them or not.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum SimdFeature {
@@ -243,8 +232,7 @@ fn installed_word() -> u32 {
     INSTALLED.load(Ordering::Relaxed)
 }
 
-/// No install without 32-bit atomics, which only targets with no SIMD
-/// feature to install lack.
+/// No install without 32-bit atomics: such targets have no SIMD feature.
 #[cfg(not(target_has_atomic = "32"))]
 #[inline]
 fn installed_word() -> u32 {
@@ -289,8 +277,8 @@ fn detected() -> SimdCpu {
 mod tests {
     use crate::{SimdCpu, SimdFeature, detected};
 
-    /// Run with `-C target-cpu=native` too, where the baseline is not empty:
-    /// it pairs every feature with the same name in both lists.
+    /// Run with `-C target-cpu=native` too, so the non-empty baseline checks
+    /// both lists use the same names.
     #[test]
     fn detection_holds_the_baseline() {
         let cpu = detected();
@@ -320,8 +308,7 @@ mod tests {
 
         let cpu = detected().without(SimdFeature::Avx2);
 
-        // SAFETY: detection holds only features the running CPU supports, and
-        // removing one keeps that.
+        // SAFETY: detected features, one removed, which keeps them supported.
         assert_eq!(unsafe { cpu.install() }, Ok(()));
         assert_eq!(SimdCpu::installed(), Some(cpu));
         assert_eq!(SimdCpu::current(), cpu);
