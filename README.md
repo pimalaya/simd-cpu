@@ -1,4 +1,4 @@
-# 🧮 simd-cpu [![Coverage](https://img.shields.io/codecov/c/github/pimalaya/simd-cpu/master?style=flat&logo=codecov&logoColor=white)](https://codecov.io/gh/pimalaya/simd-cpu) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya) [![Sponsor](https://img.shields.io/badge/sponsor-pink?style=flat&logo=github-sponsors&logoColor=white)](https://pimalaya.org/sponsor/)
+# 🧮 simd-cpu [![Documentation](https://img.shields.io/docsrs/simd-cpu?style=flat&logo=docs.rs&logoColor=white)](https://docs.rs/simd-cpu/latest/simd_cpu) [![Coverage](https://img.shields.io/codecov/c/github/pimalaya/simd-cpu/master?style=flat&logo=codecov&logoColor=white)](https://codecov.io/gh/pimalaya/simd-cpu) [![Matrix](https://img.shields.io/badge/chat-%23pimalaya-blue?style=flat&logo=matrix&logoColor=white)](https://matrix.to/#/#pimalaya:matrix.org) [![Mastodon](https://img.shields.io/badge/news-%40pimalaya-blue?style=flat&logo=mastodon&logoColor=white)](https://fosstodon.org/@pimalaya) [![Sponsor](https://img.shields.io/badge/sponsor-pink?style=flat&logo=github-sponsors&logoColor=white)](https://pimalaya.org/sponsor/)
 
 SIMD features of the running CPU as a token for SIMD codecs, no_std and dependency-free
 
@@ -6,9 +6,11 @@ SIMD features of the running CPU as a token for SIMD codecs, no_std and dependen
 
 - [Features](#features)
 - [Usage](#usage)
+- [Examples](#examples)
 - [AI policy](https://github.com/pimalaya/.github/blob/master/AI_POLICY.md)
 - [License](#license)
 - [Social](#social)
+- [Contributing](https://github.com/pimalaya/.github/blob/master/CONTRIBUTING.md)
 - [Sponsoring](#sponsoring)
 
 ## Features
@@ -24,6 +26,10 @@ SIMD features of the running CPU as a token for SIMD codecs, no_std and dependen
 ## Usage
 
 The whole API is documented on [docs.rs](https://docs.rs/simd-cpu/latest/simd_cpu), with a runnable snippet at the crate root.
+
+## Examples
+
+The crate ships no examples folder, a whole program adding nothing to a token built in one call. The crate root opens with a runnable snippet, and the installed-token tests of [base64-codec](https://github.com/pimalaya/base64-codec/blob/master/tests/installed.rs) and [quoted-printable-codec](https://github.com/pimalaya/quoted-printable-codec/blob/master/tests/installed.rs) show a codec reading it.
 
 ## License
 

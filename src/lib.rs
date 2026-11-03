@@ -1,3 +1,6 @@
+#![no_std]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 //! # simd-cpu
 //!
 //! The running CPU's SIMD features as one token, which SIMD codecs take to
@@ -30,9 +33,6 @@
 //! let cpu = SimdCpu::installed().unwrap_or(SimdCpu::BASELINE);
 //! assert_eq!(SimdCpu::current(), cpu);
 //! ```
-
-#![no_std]
-#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(any(feature = "std", test))]
 extern crate std;
